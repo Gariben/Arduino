@@ -1,7 +1,5 @@
-Mystery Project?!?
+Wearable projects
 ============
 
-Glad someone looks at my Github!
-
-You should email me at jacob.arlo.leibeck@gmail.com and let me know that you found this repo, and maybe guess what it is!
-There could be something in it for you!
+This is a repo for my various wearable projects, all completed to different degrees.
+I use these wearables for music shows and conventions.
