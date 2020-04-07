@@ -7,9 +7,6 @@ bool gDebug = false;
 
 //Hardcoded Pins
 #define PIN_WS2812B 2
-#define PIN_RED 3
-#define PIN_GREEN 4
-#define PIN_BLUE 5
 #define PIN_POWER_LED 13
 #define PIN_MIDI_LED 14
 
@@ -24,9 +21,6 @@ void setup()   {
     Serial.begin(115200);
     Serial.println("Booting Serial Monitor");
   }
-  pinMode(PIN_RED, OUTPUT);
-  pinMode(PIN_GREEN, OUTPUT);
-  pinMode(PIN_BLUE, OUTPUT);
   pinMode(PIN_POWER_LED, OUTPUT);
   pinMode(PIN_MIDI_LED, OUTPUT);
 
