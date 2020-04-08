@@ -3,13 +3,13 @@
 //Serial Monitoring.
 bool gDebug = false;
 
+#include <TeensyThreads.h>
 #include "rgb.h"
 
 //Hardcoded Pins
 #define PIN_WS2812B 2
 #define PIN_POWER_LED 13
-#define PIN_MIDI_LED 14
-
+#define PIN_MIDI_LED 15
 
 
 //SETUP
@@ -26,35 +26,53 @@ void setup()   {
 
   digitalWrite(PIN_POWER_LED, HIGH);
   digitalWrite(PIN_MIDI_LED, LOW);
+  threads.addThread(thread_LED);
 }
 
 //BEGIN GLOBAL FUNCTIONS
 //-----------------------------------------------//
 
-int GetNoteOfOctave(int iNoteIn){
+void GetNoteOctaveColor(int iNoteIn, int &iNoteOut, int &iOctaveOut, int &iColorOut){
+  if(gDebug){
+    Serial.println("\tGetNoteOctaveColor()");
+    Serial.print("\tiNoteIn: ");
+    Serial.println(iNoteIn, DEC);
+  }
   int iDivisible = -1;
-  int iNoteOut = 0;
+  iOctaveOut = 0;
+  iOctaveOut = iNoteIn/12;
+  if(gDebug){
+    Serial.print("\tiOctaveOut: ");
+    Serial.println(iOctaveOut, DEC);
+  }
   for(iNoteOut=0; (iDivisible!=0)&&(iNoteOut<12); iNoteOut++)
-    iDivisible = (iNoteIn-iNoteOut)%12;
-  return (iNoteOut-1);
-}
+   iDivisible = (iNoteIn-iNoteOut)%12;
+  if(gDebug){
+    Serial.print("\tiNoteOut: ");
+    Serial.println(iNoteOut, DEC);
+  }
+  iNoteOut=iNoteOut-1;
+  int CmajorNote=iNoteOut;
 
-int GetCMajorDegree(int iNoteIn){
-  //This is sloppy, don't show my mommy.
-  int iNoteOut=-1; //default to off.
-  if(iNoteIn==0)iNoteOut=0;
-  if(iNoteIn==2)iNoteOut=1; 
-  if(iNoteIn==4)iNoteOut=2; 
-  if(iNoteIn==5)iNoteOut=3; 
-  if(iNoteIn==7)iNoteOut=4; 
-  if(iNoteIn==9)iNoteOut=5; 
-  if(iNoteIn==11)iNoteOut=6; 
-  return iNoteOut+1; 
+  //Get 0-6 from Cmajor Key
+  constrain(CmajorNote,0,11);
+  if(CmajorNote==0)iColorOut=1;
+  if(CmajorNote==2)iColorOut=2; 
+  if(CmajorNote==4)iColorOut=3; 
+  if(CmajorNote==5)iColorOut=4; 
+  if(CmajorNote==7)iColorOut=5; 
+  if(CmajorNote==9)iColorOut=6; 
+  if(CmajorNote==11)iColorOut=7;
+  
+  if(gDebug){
+    Serial.print("\tiColorOut: ");
+    Serial.println(iColorOut, DEC);
+  }
 }
 
 void processMIDI(void) {
   byte byteType, byteChannel, byteNote, byteVelocity;
-  int iNote, iMajorDegree, iBrightness;
+  int iNote, iOctave, iColor;
 
   byteType = usbMIDI.getType();       // which MIDI message, 128-255
   byteChannel = usbMIDI.getChannel(); // which MIDI channel, 1-16
@@ -63,16 +81,14 @@ void processMIDI(void) {
   
   switch (byteType) {
     case usbMIDI.NoteOff: // 0x80
-      iNote = GetNoteOfOctave((int)byteNote);
       digitalWrite(PIN_MIDI_LED, LOW);
-      LIGHTS_OFF();
+      //LIGHTS_OFF();
+      ErasePattern(((int)byteNote)/12);
       if(gDebug){
         Serial.print("NOTE OFF: ch=");
         Serial.print(byteChannel, DEC);
         Serial.print(", note_message=");
         Serial.print(byteNote, DEC);
-        Serial.print(", note=");
-        Serial.print(iNote, DEC);
         Serial.print(", velocity=");
         Serial.println(byteVelocity, DEC);
       }
@@ -80,24 +96,18 @@ void processMIDI(void) {
       break;
     
     case usbMIDI.NoteOn: // 0x90
-      iNote = GetNoteOfOctave((int)byteNote);
       digitalWrite(PIN_MIDI_LED, HIGH);
-      iMajorDegree=GetCMajorDegree(iNote);
-      iBrightness = (int)(float(byteVelocity)*((float)100.0 / (float)128.0));
-      LIGHTS_ON(iMajorDegree, iBrightness);      
+      GetNoteOctaveColor((int)byteNote,iNote,iOctave,iColor); 
+      DisplayPattern(iColor,iOctave);    
       if(gDebug){
         Serial.print("NOTE ON: ch=");
         Serial.print(byteChannel, DEC);
         Serial.print(", note_message=");
         Serial.print(byteNote, DEC);
-        Serial.print(", note=");
-        Serial.print(iNote, DEC);     
-        Serial.print(", color=");
-        Serial.print(iMajorDegree, DEC); 
+        Serial.print(", note_message=");
+        Serial.print(byteNote, DEC);
         Serial.print(", velocity=");
-        Serial.print(byteVelocity, DEC);
-        Serial.print(", brightness=");
-        Serial.println(iBrightness, DEC);
+        Serial.println(byteVelocity, DEC);
       }
       break;
     

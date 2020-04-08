@@ -7,13 +7,12 @@
 #include <OctoWS2811.h>
 
 //WS2812B Boilerplate
-const int ledsPerStrip = 20;
-DMAMEM int displayMemory[ledsPerStrip*6];
-int drawingMemory[ledsPerStrip*6];
+const int gStripMax = 20;
+DMAMEM int displayMemory[gStripMax*6];
+int drawingMemory[gStripMax*6];
 const int config = WS2811_GRB | WS2811_800kHz;
-OctoWS2811 strip(ledsPerStrip, displayMemory, drawingMemory, config);
+OctoWS2811 strip(gStripMax, displayMemory, drawingMemory, config);
 
-//defult pins. Tehse can be overriden later.
 int gStripPin = 2;
 
 #define STRIP_OFF    0x000000
@@ -28,8 +27,6 @@ int gStripPin = 2;
 int intRainbow[8];
 int giRainbowMax = 8;
 void BuildRainbows() {
-
-
   intRainbow[0] = STRIP_OFF;
   intRainbow[1] = STRIP_RED;
   intRainbow[2] = STRIP_ORANGE;
@@ -40,7 +37,12 @@ void BuildRainbows() {
   intRainbow[7] = STRIP_WHITE;
 };
 
-
+//Thread vars
+volatile int gBackgroundColor = STRIP_OFF;
+volatile int gThreadColor=STRIP_OFF;
+volatile int gThreadPattern=0;
+volatile int gThreadIndex=0;
+volatile int gMSDelay=20000;
 
 void Buildrgb(int iStripPin) {
   strip.begin();
@@ -56,41 +58,111 @@ void Buildrgb() {
 
 //WS2812B Functions
 
+//Background Layer Functions--------------------------|
 
-void StripWipe(int iStripColor, int iMSWait)
+void BackgroundWipe(int iBGC, int iMSWait, bool bForwards)
 {
+  gBackgroundColor=iBGC;
   for (int i=0; i < strip.numPixels(); i++) {
-    strip.setPixel(i, iStripColor);
-    strip.show();
+    strip.setPixel(i, intRainbow[iBGC]);
     delayMicroseconds(iMSWait);
+    strip.show();
+
   }
 }
 
-void StripWipe(int iStripColor)
+void BackgroundFill(int iBGC)
 {
-  StripWipe(iStripColor,0);
+  BackgroundWipe(iBGC,0, true);
+}
+
+//Foreground Functions--------------------------------|
+//All use thread's index/clock
+
+void ForegoundBand(int i, int iFGC, int iBandLength, int iDirection){
+  strip.setPixel(i, intRainbow[iFGC]);
+  if(i>0)
+    strip.setPixel(i-1, intRainbow[gBackgroundColor]);
+  else if(i==0)
+    strip.setPixel(gStripMax-1, intRainbow[gBackgroundColor]);
+  strip.show();
+}
+
+void ErasePattern(int iOctave){
+  //TODO: Cleanup
+
+  if(iOctave==0){
+    BackgroundFill(STRIP_OFF);
+  }else{
+      gThreadColor=STRIP_OFF;
+      BackgroundFill(gBackgroundColor);
+      gThreadPattern=0;    
+  }
+}
+
+
+void DisplayPattern(int iColor, int iOctave){
+      if(gDebug)
+        Serial.println("\tDisplayPattern()");  
+  gThreadColor=iColor;
+
+  switch(iOctave){
+    case 0:
+      //Display Background Color
+      if(gDebug)
+        Serial.println("\tBackground Fill");
+      BackgroundFill(iColor);
+      break;
+    case 1:
+      if(gDebug)
+        Serial.println("\tForeground Band");
+      gThreadPattern=1;
+      break;
+    default:
+      break;
+  }
+}
+
+//Thread
+
+//TODO: Write this code to be templatable.
+void thread_LED(){
+  while(1){
+    //Update light index according to independent thread timer.
+    //Only show if the midi listener asks for it.
+    
+
+      switch(gThreadPattern){
+      case 0:
+        //Don't show lights, but keep time.
+        break;
+      case 1:
+        if(gDebug)
+          Serial.println("\t\tThread: Foreground Band");
+        ForegoundBand(gThreadIndex,gThreadColor,1,0);
+        break;
+      default:
+        break;
+      }
+    
+    if(gDebug){
+      //Serial.println("\tFOREGROUND THREAD: ");
+      //Serial.print("\t\t Color: ");
+      //Serial.println(gThreadColor);
+    }
+    delayMicroseconds(gMSDelay);
+    gThreadIndex++;
+    if(gThreadIndex>=gStripMax)
+      gThreadIndex=0;
+  }
 }
 
 
 
 
 
-//Master 
 
-
-void LIGHTS_ON(int iColor, int iBright) {
-  constrain(iColor,0,7);
-  int stripColor = intRainbow[iColor];
-  StripWipe(stripColor);
-}
-
-void LIGHTS_ON(int iColor) {
-  LIGHTS_ON(iColor, 100);
-}
-
-void LIGHTS_OFF() {
-  LIGHTS_ON(0, 0);
-}
+//Master
 
 
 #endif // __cplusplus
