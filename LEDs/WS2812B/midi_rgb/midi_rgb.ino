@@ -1,120 +1,88 @@
-/*** You must select MIDI from the "Tools > USB Type" menu ***/
+#include <WS2812Serial.h>
 
-//Serial Monitoring.
-bool gDebug = false;
+bool gEnableLogging = false;
 
-#include "rgb.h"
+const int pin = 1;
 
-//Hardcoded Pins
-#define PIN_WS2812B 2
-#define PIN_POWER_LED 13
-#define PIN_MIDI_LED 14
+// Usable pins:
+//   Teensy LC:   1, 4, 5, 24
+//   Teensy 3.2:  1, 5, 8, 10, 31   (overclock to 120 MHz for pin 8)
+//   Teensy 3.5:  1, 5, 8, 10, 26, 32, 33, 48
+//   Teensy 3.6:  1, 5, 8, 10, 26, 32, 33
+//   Teensy 4.0:  1, 8, 14, 17, 20, 24, 29, 39
 
+#define BLANK  0x000000
+#define RED    0xFF0000
+#define GREEN  0x00FF00
+#define BLUE   0x0000FF
+#define YELLOW 0xFFFF00
+#define PINK   0xFF1088
+#define ORANGE 0xE05800
+#define WHITE  0xFFFFFF
 
+int Rainbow[8];
+const int numled = 150;
+int strips=10;
+int len=15;
+int iColor=BLANK;
 
-//SETUP
-//-----------------------------------------------//
+byte drawingMemory[numled*3];         //  3 bytes per LED
+DMAMEM byte displayMemory[numled*12]; // 12 bytes per LED
 
-void setup()   {
-  Buildrgb();
-  if(gDebug){
+WS2812Serial leds(numled, displayMemory, drawingMemory, pin, WS2812_GRB);
+
+void setup() {
+
+  //Monitoring
+  if(gEnableLogging){
     Serial.begin(115200);
     Serial.println("Booting Serial Monitor");
   }
-  pinMode(PIN_POWER_LED, OUTPUT);
-  pinMode(PIN_MIDI_LED, OUTPUT);
 
-  digitalWrite(PIN_POWER_LED, HIGH);
-  digitalWrite(PIN_MIDI_LED, LOW);
+  //Colors
+  Rainbow[0] = BLANK;
+  Rainbow[1] = RED;
+  Rainbow[2] = ORANGE;
+  Rainbow[3] = YELLOW;
+  Rainbow[4] = GREEN;
+  Rainbow[5] = BLUE;
+  Rainbow[6] = PINK;
+  Rainbow[7] = WHITE;
+
+  //LED Strip init
+  leds.begin();
+  for (int i=0; i < numled; i+=15) {
+    for(int j=0; j<strips; j++){ 
+      leds.setPixel((i+j), BLANK);
+      leds.setPixel((numled-1)-(i+j), BLANK);
+    }
+    leds.show();
+  } 
 }
 
-//BEGIN GLOBAL FUNCTIONS
-//-----------------------------------------------//
-
-int GetNoteOfOctave(int iNoteIn){
-  int iDivisible = -1;
-  int iNoteOut = 0;
-  for(iNoteOut=0; (iDivisible!=0)&&(iNoteOut<12); iNoteOut++)
-    iDivisible = (iNoteIn-iNoteOut)%12;
-  return (iNoteOut-1);
-}
-
-int GetCMajorDegree(int iNoteIn){
-  //This is sloppy, don't show my mommy.
-  int iNoteOut=-1; //default to off.
-  if(iNoteIn==0)iNoteOut=0;
-  if(iNoteIn==2)iNoteOut=1; 
-  if(iNoteIn==4)iNoteOut=2; 
-  if(iNoteIn==5)iNoteOut=3; 
-  if(iNoteIn==7)iNoteOut=4; 
-  if(iNoteIn==9)iNoteOut=5; 
-  if(iNoteIn==11)iNoteOut=6; 
-  return iNoteOut+1; 
-}
-
-void processMIDI(void) {
-  byte byteType, byteChannel, byteNote, byteVelocity;
-  int iNote, iMajorDegree, iBrightness;
-
-  byteType = usbMIDI.getType();       // which MIDI message, 128-255
-  byteChannel = usbMIDI.getChannel(); // which MIDI channel, 1-16
-  byteNote = usbMIDI.getData1();     // first data byte of message, 0-127
-  byteVelocity = usbMIDI.getData2();     // second data byte of message, 0-127
-  
-  switch (byteType) {
-    case usbMIDI.NoteOff: // 0x80
-      iNote = GetNoteOfOctave((int)byteNote);
-      digitalWrite(PIN_MIDI_LED, LOW);
-      LIGHTS_OFF();
-      if(gDebug){
-        Serial.print("NOTE OFF: ch=");
-        Serial.print(byteChannel, DEC);
-        Serial.print(", note_message=");
-        Serial.print(byteNote, DEC);
-        Serial.print(", note=");
-        Serial.print(iNote, DEC);
-        Serial.print(", velocity=");
-        Serial.println(byteVelocity, DEC);
+void loop() {
+    if(usbMIDI.read()){
+      if(usbMIDI.getType() == usbMIDI.NoteOff){
+        iColor=Rainbow[0];
+        if(gEnableLogging)
+          Serial.println("NOTE OFF");
+      }else if(usbMIDI.getType() == usbMIDI.NoteOn){
+        (((usbMIDI.getData1()%12)+1) > 7) ? iColor=Rainbow[0] : iColor=Rainbow[(usbMIDI.getData1()%12)+1];
+        if(gEnableLogging)
+        {
+          Serial.print("NOTE ON: ");
+          Serial.print(usbMIDI.getData1());
+          Serial.print("->");
+          Serial.println((usbMIDI.getData1()%12)+1);
+        }
       }
-
-      break;
-    
-    case usbMIDI.NoteOn: // 0x90
-      iNote = GetNoteOfOctave((int)byteNote);
-      digitalWrite(PIN_MIDI_LED, HIGH);
-      iMajorDegree=GetCMajorDegree(iNote);
-      iBrightness = (int)(float(byteVelocity)*((float)100.0 / (float)128.0));
-      LIGHTS_ON(iMajorDegree, iBrightness);      
-      if(gDebug){
-        Serial.print("NOTE ON: ch=");
-        Serial.print(byteChannel, DEC);
-        Serial.print(", note_message=");
-        Serial.print(byteNote, DEC);
-        Serial.print(", note=");
-        Serial.print(iNote, DEC);     
-        Serial.print(", color=");
-        Serial.print(iMajorDegree, DEC); 
-        Serial.print(", velocity=");
-        Serial.print(byteVelocity, DEC);
-        Serial.print(", brightness=");
-        Serial.println(iBrightness, DEC);
+      
+      for (int i=0; i < numled; i+=15) {
+        for(int j=0; j<strips; j++){ 
+          leds.setPixel((i+j), iColor);
+          leds.setPixel((numled-1)-(i+j), iColor);
+        }
       }
-      break;
-    
-    default:
-      if(gDebug){
-        Serial.println("WARNING: Unknown Message Received.");
-      }
-  }
-}
-
-
-//BEGIN LOOP
-//-----------------------------------------------//
-
-void loop()                     
-{
-  if (usbMIDI.read()) {
-    processMIDI();
-  }
+      leds.show();
+   }
 }
