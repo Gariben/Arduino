@@ -24,3 +24,12 @@ Physical Specs:
 2) Re-writing the midi input system to accomodate the capabilities of a WS2812B strip.
 3) Interpetting clock messages in order to make timed effects (such as a single "Knight Rider" style travelling band)
 4) Rewrite README to better document how the midi input system works, and include examples.
+
+
+#### Demonstrations
+
+* [Early Proof-of-Concept](https://www.youtube.com/watch?v=q7q1eOAbsw4)
+* [Completed Enclosure](https://youtu.be/XtE8xwrXbrg)
+* [Performance Demonstration #1](https://youtu.be/enVoB2FmVm4)
+* [Performance Demonstration #2](https://youtu.be/j5LImwMfDG4)
+* [Featured Performance w/ Death Mountain](https://youtu.be/60tBdNe2xjs)
